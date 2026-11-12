@@ -1,0 +1,343 @@
+/**
+ * TEST Code
+ * Tracks the circular targets in real time, sending only the selected pixels to Wekinator
+ * Wekinator determines class based on RGB values, sends to Processing, which gets sent to Arduino\
+ * Includes a failsafe which defaults servos back to class 1 (balance) if no ball is detected
+ **/
+
+import processing.video.*;
+import oscP5.*;
+import netP5.*;
+import processing.serial.*;
+Serial port;
+
+Capture video;
+int cameraIndex = 0;
+boolean printedCaptureSize = false;
+int lastSentOSC = 0;        // Creates time stamp for last message sent to Wekinator
+int lastLoggedClass = -1;   // Creates a stored value for the last detected class by Wekinator
+ 
+
+/*VARIABLES FOR COLOR TRACKING */
+final int MASK_W = 320;    // Mask is 320:180 to match the 16:9 ratio of the camera. CHANGE TO MATCH FINAL CAMERA
+final int MASK_H = 180;
+PImage colorMask;
+
+/* VARIABLES FOR ESTABLISHING COLORED CIRCLE/BALL */
+boolean[] maskPixels = new boolean[MASK_W * MASK_H];  // List of true/false values for each pixel in the color tracking mask
+boolean[] visited = new boolean[MASK_W * MASK_H];     // Records if code has already examined each pixel in the color tracking mask
+int[] floodQueue = new int[MASK_W * MASK_H];          // Temporary place to queue remaining pixels to be examined in color tracking mask
+
+/* FAILSAFE VARIABLES */
+int lastBallTime = 0;
+int lastArduinoClass = -1;
+boolean noBallDetected = false;
+final int noBallRefreshRate = 2000; 
+
+OscP5 oscP5;
+NetAddress dest;
+
+
+void setup() {
+  size(960, 540);
+
+  String[] cameras = Capture.list();
+  println("Available Cameras: ");
+  printArray(cameras);
+  
+  if (cameras.length == 0) {
+    println("No cameras detected.");
+    exit();
+    return;
+  }
+  
+  
+  video = new Capture(this, 1920, 1080, cameras[cameraIndex]);    //requests 1080p resolution from camera
+  video.start();    // begin recording
+
+  colorMask = createImage(MASK_W, MASK_H, ARGB);
+
+  noStroke();
+  
+  lastBallTime = millis();
+
+  /* start oscP5, listening for incoming messages at port 12000 */
+  oscP5 = new OscP5(this, 12000);
+  dest = new NetAddress("127.0.0.1", 6448);
+  
+  /* CONNECTING CODE TO ARDUINO */
+  println("Available Serial Ports: ");
+  printArray(Serial.list());
+  port = new Serial(this, Serial.list()[2], 115200);   // Change [X] to correct serial port number
+}
+
+
+/* CIRCLE TRACKER TEST */
+
+void draw() {
+
+  if (video.available() == true) {
+    video.read();
+    video.loadPixels(); // Make the pixels of video available
+
+    if (!printedCaptureSize) {
+      println("Camera Capture: " + video.width + " x " + video.height);   // Prints the resolution of camera to serial monitor (if detected)
+      printedCaptureSize = true;
+    }
+
+    colorMask.loadPixels();  //
+
+    for (int y = 0; y < MASK_H; y++) {
+      int maskY = y * video.height / MASK_H;
+
+      for (int x = 0; x < MASK_W; x++) {
+        int maskX = x * video.width / MASK_W;
+        color c = video.pixels[maskX + maskY * video.width];
+
+        float highest = max(red(c), max(green(c), blue(c)));  //records what the most prevalent color channels in view currently are
+        float lowest = min(red(c), min(green(c), blue(c)));   //records what the least prevalent color channels in view currently are
+
+        float colorSpectrum = highest - lowest;
+        float colorStrength = 0;
+
+        if (highest > 0) {
+          colorStrength = colorSpectrum / highest;
+        }
+
+        boolean colorful = highest > 80 && colorStrength > 0.5;  //Generic test to ensure there is a uniform colorful region
+        int maskIndex = x + y * MASK_W;
+        maskPixels[maskIndex] = colorful;
+
+        //Creates a visual overlay on the camera view if it deteects a uniformed color blob
+        //if (colorful) {
+        //  colorMask.pixels[maskIndex] = color(255, 255, 0, 150);
+        //}
+
+        ////Deletes any visual overlay on the camera view if it doesn't
+        //else {
+        //  colorMask.pixels[maskIndex] = color (0, 0);
+        //}
+      }
+    }
+
+    colorMask.updatePixels();
+
+    image(video, 0, 0, width, height);
+    image(colorMask, 0, 0, width, height);
+
+    float[] circleBoundary = findCircleBoundary();  // Calls for the bounding box of selected pixels detected by the findCircleBoundary function
+
+    /* TRACKING & CALCULATING THE POSITION & SIZE OF COLORED CIRCLE IN CAMERA */
+
+    if (circleBoundary != null) {
+      
+      lastBallTime = millis();
+      noBallDetected = false;
+      
+      float circleX = (circleBoundary[0] + circleBoundary[2] / 2.0) * width / MASK_W;    // Finds horizontal center
+      float circleY = (circleBoundary[1] + circleBoundary[3] / 2.0) * height / MASK_H;   // Finds vertical center
+      float circleW = circleBoundary[2] * width / MASK_W;                                // Calculates the width to the camera's scale
+      float circleH = circleBoundary[3] * height / MASK_H;                               // Calculates the height to the camera's scale
+
+      // CREATE SMALLER CENTRAL TARGET FOR RGB DETERMINATION (circle within a circle)
+
+      float smallCircleX = video.width / (float) MASK_W;   // (float) definition allows the division to happen for all camera resolutions
+      float smallCircleY = video.height / (float) MASK_H;  // (float) definition allows the division to happen for all camera resolutions
+      float smallCenterX = (circleBoundary[0] + circleBoundary[2] / 2.0) * smallCircleX;
+      float smallCenterY = (circleBoundary[1] + circleBoundary[3] / 2.0) * smallCircleY;
+
+      float smallCenterRadiusX = circleBoundary[2] * smallCircleX * 0.35;
+      float smallCenterRadiusY = circleBoundary[3] * smallCircleY * 0.35;
+
+      //// TEMPORARY CENTER DOT TRACKER
+      //fill(0, 255, 255);
+      //noStroke();
+      // ellipse(circleX, circleY, 8, 8);
+
+      // TRACES THE DETECTED CIRCLE ON CAMERA OVERLAY
+      noFill();
+      stroke(0, 255, 255);
+      strokeWeight(3);
+      ellipse(circleX, circleY, circleW, circleH);
+
+
+      // TRACKED REGION RGB VALUES SENT TO WEKINATOR
+      float sumRed = 0;
+      float sumGreen = 0;
+      float sumBlue = 0;
+      int count = 0;
+      
+      //Rounding border of Wekinator pixel region to integer values
+      int firstWekX = max(0, round(smallCenterX - smallCenterRadiusX));               
+      int lastWekX = min(video.width - 1, round(smallCenterX + smallCenterRadiusX));
+      int firstWekY = max(0, round(smallCenterY - smallCenterRadiusY));
+      int lastWekY = min(video.height - 1, round(smallCenterY + smallCenterRadiusY));
+
+      for (int y = firstWekY; y <= lastWekY; y++) {
+        for (int x = firstWekX; x <=lastWekX; x++) {
+          float offsetX = x - smallCenterX;
+          float offsetY = y - smallCenterY;
+          
+          float relativeDistanceX = offsetX / smallCenterRadiusX;
+          float relativeDistanceY = offsetY / smallCenterRadiusY;
+          
+          if (relativeDistanceX * relativeDistanceX + relativeDistanceY * relativeDistanceY <= 1.0) {
+            color pixelColor = video.pixels[x + y * video.width];
+
+            sumRed += red(pixelColor);
+            sumGreen += green(pixelColor);
+            sumBlue += blue(pixelColor);
+            count++;
+          }
+        }
+      }
+
+      if (count > 0) {                            //Analyzing the average color values (RGB) of the pixels inside the viewing circle
+        float averageRed = sumRed / count;
+        float averageGreen = sumGreen / count;
+        float averageBlue = sumBlue / count;
+
+        if (millis() - lastSentOSC >= 100) {      //Calculates the values/labels for Processing's serial montior and Wekinator
+          OscMessage msg = new OscMessage("/wek/inputs");
+          msg.add(averageRed / 255.0);
+          msg.add(averageGreen / 255.0);
+          msg.add(averageBlue / 255.0);
+
+          oscP5.send(msg, dest);
+          lastSentOSC = millis();
+        }
+      }
+    }
+    
+    /* DEFAULT TO CLASS 1 FAILSAFE */
+    else if (!noBallDetected && millis() - lastBallTime >= noBallRefreshRate) {
+      noBallDetected = true;
+      sendArduinoClass(1);
+      println("No Ball Detected");
+    }
+  }
+}
+
+
+float[] findCircleBoundary() {
+  for (int i = 0; i < visited.length; i++) {              // Clears the "already examined" pixels every camera frame
+    visited[i] = false;                                   // Basically... it ensures tracking is live in real time
+  }
+
+  int largestArea = 0;                                    // Remembers the largest circle match so far
+  float[] bestBoundary = null;                            // Clears the the match at the start of each search
+
+  for (int start = 0; start < maskPixels.length; start++) { // Checks each pixel in the color tracking mask as a potential starting point
+    if (!maskPixels[start] || visited[start]) continue;     // Tells code to skip pixels that are NEITHER colorful or already examined
+
+    int head = 0;                       // Searches for all neighboring colorful pixels, head tracks next queued pixel
+    int tail = 0;                       // Tail trackes next empty queue position
+    floodQueue[tail++] = start;
+    visited[start] = true;              // Marks each examined pixel as visited after
+
+    // Calculates cluster measurements
+    int area = 0;
+    int minX = MASK_W;
+    int maxX = -1;
+    int minY = MASK_H;
+    int maxY = -1;
+
+    while (head < tail) {                   // Tells code to keep searching until there's no more pixels to be examined
+      int index = floodQueue[head++];       // Converts pixel number back into x and y coordinates of color mask
+      int px = index % MASK_W;
+      int py = index / MASK_W;
+
+      area++;                               // Expands the groups area WHILE it searches for more pixels (linked to line 264)
+      minX = min(minX, px);
+      maxX = max(maxX, px);
+      minY = min(minY, py);
+      maxY = max(maxY, py);
+
+      for (int ny = max(0, py - 1); ny <= min(MASK_H - 1, py + 1); ny++) {     // Checks the "little sqaure" of pixels that border the current pixel
+        for (int nx = max(0, px - 1); nx <= min(MASK_W -1, px + 1); nx++) {    // Think of it as a 3x3 grid of surrounding pixels, with the current pixel at the center
+          int neighbor = nx + ny * MASK_W;                                     // Converts the neighboring pixels' coordinates back to their list numbers
+
+          if (maskPixels[neighbor] && !visited[neighbor]) {     // Marks the neighboring pixels as visted and adds them to the queue
+            visited[neighbor] = true;                           // This process repeating is what gathers the whole group of connected pixels
+            floodQueue[tail++] = neighbor;
+          }
+        }
+      }
+    }
+
+    // Calculating the width and height of the selected pixels' bounding box (square)
+    int boxW = maxX - minX + 1;
+    int boxH = maxY - minY + 1;
+    float aspect = (float) boxW / boxH;             // Finds the aspect ratio of the bounding box (should be near 1 since its a square, and later a circle)
+    float fill = (float) area / (boxW * boxH);      // Calculates how much of the bounding BOX is colored pixels (a circle should occupy ~80% of its tangential bounding box)
+
+    // Accepts a selected candidate group ONLY if it big enough, roughly square, and fills a plausible fraction of its bounding box
+    boolean circleLike =
+      area >= 20 &&
+      aspect >= 0.65 && aspect <= 1.5 &&
+      fill >= 0.50 && fill <= 0.95;
+
+    // Saves the selected candidate group if it passes the previous test AND is bigger than the best one so far.
+    if (circleLike && area > largestArea) {
+      largestArea = area;
+      bestBoundary = new float[] { minX, minY, boxW, boxH };
+    }
+  }
+
+  return bestBoundary;
+}
+
+
+
+
+
+/* WEKINATOR OUTPUT MESSAGES */
+
+void oscEvent(OscMessage msg) {
+  if (!msg.checkAddrPattern("/wek/outputs")) return; //Ignores all messages that are not Wekinator outputs
+
+  if (!msg.checkTypetag("f")) {  //Indicates if wekinator's output is not a float (abnormal)
+    println("Unexpected OSC Type: " + msg.typetag());
+    return;
+  }
+
+  if (msg.arguments().length == 0) return;  //Ignores all messages that have no values
+
+  int classNumber = round(msg.get(0).floatValue());  // Rounds Wekinators predicted class to whole number 
+
+  String predictedColor;
+  
+  /* PROCESSIMG CLASS SWITCHBOARD, CREATES TEXT OUTPUT BASED ON WEKINATOR CLASS */
+  
+  switch (classNumber) {
+  case 1:
+    predictedColor = "Red";
+    break;
+  case 2:
+    predictedColor = "Green";
+    break;
+  case 3:
+    predictedColor = "Blue";
+    break;
+  default:
+    predictedColor = "UNKNOWN";
+    break;
+  }
+
+  if (classNumber != lastLoggedClass) {
+    lastLoggedClass = classNumber;        //creates a new variable. Seperates current class from last class
+  println("CLASS: " + classNumber + ". " + "Predicted Color: " + predictedColor + ".");   //Prints the Wekinator-determined class in processing serial monitor
+  }
+  
+  if (millis() - lastBallTime < noBallRefreshRate) {
+    sendArduinoClass(classNumber);      // Currently sends Arduino the class in Byte format, not text
+  }
+}
+
+
+void sendArduinoClass(int classNumber) {
+  if (classNumber == lastArduinoClass) return;
+  port.write(classNumber);
+  lastArduinoClass = classNumber;
+  println("Arduino Class Sent: " + classNumber);
+}
