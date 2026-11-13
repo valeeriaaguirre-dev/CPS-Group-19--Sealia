@@ -315,5 +315,5 @@ Adam Saint-Jaques, Amber Jiang &  Valeria Aguirre
 
 ## Licence and Attribution
 
-Sealia is derived from the open-source [BABOT](https://github.com/JohanLink/BABOT) project.
-This is a student project created for the module Cyber Physical Systems at Imperial College. London, UK. 2026.
+Sealia is a student project created for the module Cyber Physical Systems at Imperial College. London, UK. 2026.
+It uses the open-source project [BABOT](https://github.com/JohanLink/BABOT) for the self balancing platform. 
