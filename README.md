@@ -1,5 +1,8 @@
 # Sealia
 
+<img width="1206" height="816" alt="Screenshot 2026-11-06 at 1 01 58 PM" src="https://github.com/user-attachments/assets/5bc35fbf-0fb1-4d33-bf23-874a79f2f24e" />
+
+
 An interactive self-balancing robotic seal with integrated machine learning.
 ## Overview
 
