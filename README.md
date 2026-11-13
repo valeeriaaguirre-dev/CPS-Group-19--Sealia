@@ -33,8 +33,8 @@ When the red ball is detected:
 When the green ball is detected:
 
 1. The tail closes.
-2. The arms slowly raise.
-3. Once the arms reach the top position, the platform launches the ball.
+2. The seal's arms slowly raise.
+3. Once the seal's arms reach the top position, the platform launches the ball.
 4. The tail opens at the same time as the ball is launched.
 5. Sealia plays the Sad Song.
 
@@ -42,7 +42,7 @@ When the green ball is detected:
 
 When the blue ball is detected:
 
-1. The arms alternate in a waving motion.
+1. One of seal's arm goes up and waves.
 2. The tail claps.
 3. The ball platform stays flat in the raised position.
 4. Sealia plays the Performance Song.
