@@ -19,33 +19,54 @@ Sealia currently responds to three classes.
 | Class 2 | 🟢 Green Ball | Launch behaviour |
 | Class 3 | 🔵 Blue Ball | Performance behaviour |
 
+## Servo and Output Pins
+
+| Component | Arduino Pin | Movement |
+| --- | --- | --- |
+| Platform Servo D | Pin 2 | 0° up / 90° down |
+| Platform Servo E | Pin 3 | 0° up / 90° down |
+| Platform Servo F | Pin 4 | 0° up / 90° down |
+| Tail Servo C | Pin 9 | 100° closed / 170° open |
+| Left Arm A | Pin 10 | 45° down / 130° up |
+| Right Arm B | Pin 11 | 45° down / 130° up |
+| Buzzer | Pin 12 | Audio output |
+
+The seal arms begin at approximately 80°. The Arduino gradually moves the arm servos one degree at a time toward their target positions to create smoother movements.
+
 ### **Class 1 — Red Ball**
 
 When the red ball is detected:
 
-1. The arms wave up and down.
-2. The ball platform stays flat in the lowered position.
-3. The tail claps.
-4. Sealia plays the Happy Song.
+1. Platform servos D, E and F move to 90°, keeping the ball platform flat in the lowered position.
+2. Arm A on Pin 10 moves between 45° and 130°.
+3. Arm B on Pin 11 moves between 45° and 130°.
+4. Both arms move together, creating a synchronized waving motion.
+5. The tail servo on Pin 9 repeatedly moves between 100° and 170°, creating the clapping motion.
+6. Sealia plays the Happy Song through the buzzer on Pin 12.
 
 ### **Class 2 — Green Ball**
 
 When the green ball is detected:
 
-1. The tail closes.
-2. The seal's arms slowly raise.
-3. Once the seal's arms reach the top position, the platform launches the ball.
-4. The tail opens at the same time as the ball is launched.
-5. Sealia plays the Sad Song.
+1. The tail closes to 100° using the servo on Pin 9.
+2. Arm A and Arm B slowly move upward toward 130°.
+3. While the arms are moving, platform servos D, E and F remain at 90°.
+4. The Arduino waits until both seal arms have reached 130°.
+5. Platform servos D and E then move from 90° to 0°, creating the ball-launching movement.
+6. At the same time, the tail opens from 100° to 170°.
+7. Sealia then plays the Sad Song through the buzzer on Pin 12.
 
 ### **Class 3 — Blue Ball**
 
 When the blue ball is detected:
 
-1. One of seal's arm goes up and waves.
-2. The tail claps.
-3. The ball platform stays flat in the raised position.
-4. Sealia plays the Performance Song.
+1. Platform servos D, E and F move to 0°, keeping the platform flat in its raised position.
+2. Arm A moves toward 130° while Arm B moves toward 45°.
+3. Once both arms reach their target positions, the targets switch.
+4. Arm A then moves toward 45° while Arm B moves toward 130°.
+5. This continues repeatedly, creating an alternating waving motion.
+6. The tail servo repeatedly moves between 100° and 170°, creating the clapping motion.
+7. Audio is played through the buzzer on Pin 12.
 
 ---
 
