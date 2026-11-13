@@ -309,7 +309,7 @@ More detailed project documentation can be stored inside the `docs` directory wi
 
 Sealia Project
 
-Adam Saint- Jaques, Amber Jiang &  Valeria Aguirre
+Adam Saint-Jaques, Amber Jiang &  Valeria Aguirre
 
 ---
 
