@@ -15,7 +15,7 @@ Sealia currently responds to three classes.
 
 | Class | Input | Behaviour |
 | --- | --- | --- |
-| Class 1 | 🔴 Red Ball | Happy / excited behaviour |
+| Class 1 | 🔴 Red Ball | Happy behaviour |
 | Class 2 | 🟢 Green Ball | Launch behaviour |
 | Class 3 | 🔵 Blue Ball | Performance behaviour |
 
