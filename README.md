@@ -186,31 +186,40 @@ There are 3 different gear components powered by servo motors. 2 servo motors wh
 
 ## Hardware
 
-Sealia combines computer-side machine learning with Arduino-based hardware control.
+Sealia combines computer-side machine learning with Arduino-based hardware control into multi-part mechatronic systems.
 
 Main system components include:
 
 ```text
 Microcontroller:
-Arduino
+Arduino Uno
+- Serves as the principle command center for the servo motors and buzzer.
 
 Machine Learning:
 Wekinator
+- Serves as the decision-making algorithm for what class (protocol) the robot should 
 
 Camera:
 External Webcam
+- Used to visualize the color of the ball situated on the platform
 
 Communication Software:
 Processing
+- Acts as the bridge between wekinator and arduino. It transmits the relevant set of pixels to wekinator for analysis, then relays Wekinators determined class to arduino via serial.
 
 Mechanism:
 Servos Motors and Custom Gear Components
 
 Sound:
-Passive Buzzer
+Piezo Passive Buzzer
+- Used to broadcast the different frequency notes in succession to play the robots various jingles.
+
+
+Power Board:
+- The class-supplied power board provides both 5V and 3.3V to the arduino breadboard power rails when plugged in, the 5V power rail powers all the servo motors and the buzzer.
 
 Power Supply:
-External Battery 5V
+- The External battery connects to the power board, allowing the 5V power delivery
 
 ---
 
