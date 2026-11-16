@@ -221,6 +221,8 @@ Power Board:
 Power Supply:
 - The External battery connects to the power board, allowing the 5V power delivery
 
+See Supporting_Documentation_Group 19.pdf for a visual Arduino wiring diagram.
+
 ---
 
 ## System Architecture
